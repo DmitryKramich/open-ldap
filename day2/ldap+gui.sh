@@ -1,33 +1,20 @@
 #!/bin/bash
 
-sudo su
-yum update -y
-yum -y install openldap compat-openldap openldap-clients openldap-servers openldap-servers-sql openldap-devel
-systemctl start slapd
-systemctl enable slapd
-firewall-cmd --add-service=ldap
+sudo yum -y install openldap compat-openldap openldap-clients openldap-servers openldap-servers-sql openldap-devel
+sudo systemctl start slapd
+sudo systemctl enable slapd
+sudo firewall-cmd --add-service=ldap
 
-slappasswd -s andwegoagain > temp
+sudo slappasswd -s andwegoagain > temp
 
-cat > ldaprootpasswd.ldif <<EOF
+sudo cat > ldaprootpasswd.ldif <<EOF
 dn: olcDatabase={0}config,cn=config
 changetype: modify
 add: olcRootPW
 olcRootPW: $(cat temp)
 EOF
 
-ldapmodify -Y EXTERNAL -H ldapi:/// -f ldaprootpasswd.ldif
-
-cp /usr/share/openldap-servers/DB_CONFIG.example /var/lib/ldap/DB_CONFIG
-chown -R ldap:ldap /var/lib/ldap
-
-systemctl restart slapd
-
-ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
-ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
-ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
-
-cat > ldapdomain.ldif <<EOF
+sudo cat > ldapdomain.ldif <<EOF
 dn: olcDatabase={1}monitor,cn=config
 changetype: modify
 replace: olcAccess
@@ -56,10 +43,7 @@ olcAccess: {1}to dn.base="" by * read
 olcAccess: {2}to * by dn="cn=Manager,dc=devopsldab,dc=com" write by * read
 EOF
 
-ldapmodify -Y EXTERNAL -H ldapi:/// -f ldapdomain.ldif
-
-
-cat > baseldapdomain.ldif <<EOF
+sudo cat > baseldapdomain.ldif <<EOF
 dn: dc=devopsldab,dc=com
 objectClass: top
 objectClass: dcObject
@@ -81,18 +65,14 @@ objectClass: organizationalUnit
 ou: Group
 EOF
 
-ldapadd -x -w andwegoagain -D "cn=Manager,dc=devopsldab,dc=com" -f baseldapdomain.ldif
-
-cat > ldapgroup.ldif <<EOF
+sudo cat > ldapgroup.ldif <<EOF
 dn: cn=Manager,ou=Group,dc=devopsldab,dc=com
 objectClass: top
 objectClass: posixGroup
 gidNumber: 1005
 EOF
 
-ldapadd -x -w andwegoagain -D "cn=Manager,dc=devopsldab,dc=com" -f ldapgroup.ldif
-
-cat > openssh-lpk.ldif <<EOF
+sudo cat > openssh-lpk.ldif <<EOF
 dn: cn=openssh-lpk,cn=schema,cn=config
 objectClass: olcSchemaConfig
 cn: openssh-lpk
@@ -106,9 +86,7 @@ olcObjectClasses: ( 1.3.6.1.4.1.24552.500.1.1.2.0 NAME 'ldapPublicKey' SUP top A
   )
 EOF
 
-ldapadd -Y EXTERNAL -H ldapi:/// -f openssh-lpk.ldif
-
-cat > ldapuser.ldif <<EOF
+sudo cat > ldapuser.ldif <<EOF
 dn: uid=my_user,ou=People,dc=devopsldab,dc=com
 objectClass: top
 objectClass: account
@@ -129,16 +107,26 @@ shadowWarning: 0
 sshPublicKey: ${key}
 EOF
 
-ldapadd -x -w andwegoagain -D "cn=Manager,dc=devopsldab,dc=com" -f ldapuser.ldif
+sudo ldapmodify -Y EXTERNAL -H ldapi:/// -f ldaprootpasswd.ldif
+sudo cp /usr/share/openldap-servers/DB_CONFIG.example /var/lib/ldap/DB_CONFIG
+sudo chown -R ldap:ldap /var/lib/ldap
+sudo systemctl restart slapd
 
-rm -f temp
+sudo ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif
+sudo ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/nis.ldif
+sudo ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif
+sudo ldapmodify -Y EXTERNAL -H ldapi:/// -f ldapdomain.ldif
+sudo ldapadd -Y EXTERNAL -H ldapi:/// -f openssh-lpk.ldif
 
+sudo ldapadd -x -w andwegoagain -D "cn=Manager,dc=devopsldab,dc=com" -f baseldapdomain.ldif
+sudo ldapadd -x -w andwegoagain -D "cn=Manager,dc=devopsldab,dc=com" -f ldapgroup.ldif
+sudo ldapadd -x -w andwegoagain -D "cn=Manager,dc=devopsldab,dc=com" -f ldapuser.ldif
 
-yum install -y phpldapadmin
+sudo yum install -y phpldapadmin
+sleep 30s
+sudo sed -i '397 s;// $servers;$servers;' /etc/phpldapadmin/config.php
+sudo sed -i '398 s;$servers->setValue;// $servers->setValue;' /etc/phpldapadmin/config.php
+sudo sed -i ' s;Require local;Require all granted;' /etc/httpd/conf.d/phpldapadmin.conf
+sudo sed -i ' s;Allow from 127.0.0.1;Allow from 0.0.0.0;' /etc/httpd/conf.d/phpldapadmin.conf
 
-sed -i '397 s;// $servers;$servers;' /etc/phpldapadmin/config.php
-sed -i '398 s;$servers->setValue;// $servers->setValue;' /etc/phpldapadmin/config.php
-sed -i ' s;Require local;Require all granted;' /etc/httpd/conf.d/phpldapadmin.conf
-sed -i ' s;Allow from 127.0.0.1;Allow from 0.0.0.0;' /etc/httpd/conf.d/phpldapadmin.conf
-
-systemctl restart httpd
+sudo systemctl restart httpd

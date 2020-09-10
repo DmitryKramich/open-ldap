@@ -21,8 +21,7 @@ resource "google_compute_instance" "lpad_server" {
   }
   
   metadata_startup_script = templatefile("ldap+gui.sh", {
-    key     = "${var.pubkey}"
-    ldap_ip = "$(local.srv_ldap_ip)" })
+    key = "${var.pubkey}" })
   
   network_interface {
 	network    = var.network_custom_vpc
@@ -50,7 +49,7 @@ resource "google_compute_instance" "lpad_client" {
     }
   }
     metadata_startup_script = templatefile("client-ldap.sh", {
-    ldap_ip = "$(local.srv_ldap_ip)" })
+    ldap_ip = "${local.srv_ldap_ip}" })
 	
   network_interface {
 	network    = var.network_custom_vpc

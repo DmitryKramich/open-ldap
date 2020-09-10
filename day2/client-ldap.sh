@@ -25,3 +25,4 @@ echo "AuthorizedKeysCommand /opt/ssh_ldap.sh" >> /etc/ssh/ssh_config
 echo "AuthorizedKeysCommandUser nobody" >> /etc/ssh/ssh_config
 sed -i '/PasswordAuthentication/s/no/yes/' /etc/ssh/sshd_config
 sudo systemctl restart sshd
+
